@@ -21,70 +21,74 @@ functions.cloudEvent('ingestCart', async cloudEvent => {
     const timeOnSite = parsedData.timeOnSite;
 
     //Log the data for debugging
-    console.log(`Debug on cart:
+    console.log(`Raw cart data:
         customerId: ${customerId},
         items: ${items.map(item => item.itemId).join(', ')},
         paid: ${paid},
         priority: ${priority},
         timeOnSite: ${timeOnSite}`);
 
-    if (!customerId || !items || !paid || !priority || !timeOnSite) {
-        console.error('Missing required fields:', {
-            customerId, items, paid, priority, timeOnSite
-        });
+    const missingFields = Object.entries({ customerId, items, paid, priority, timeOnSite })
+        .filter(([, value]) => value === undefined || value === null || value === '')
+        .map(([key]) => key);
+
+    if (missingFields.length > 0) {
+        console.error(`One or more fields are missing: ${missingFields.join(', ')}`);
         return;
     }
 
+
+
     // Check if the data types are valid
     if (typeof customerId !== 'string') {
-        console.error(`Invalid data type: customerId should be a string, received`, customerId);
+        console.error(`Invalid data type: customerId should be a string, received:`, customerId);
         return;
     }
     if (!Array.isArray(items)) {
-        console.error(`Invalid data type: items should be an array, received`, items);
+        console.error(`Invalid data type: items should be an array, received:`, items);
         return;
     }
     if (typeof paid !== 'boolean') {
-        console.error(`Invalid data type: paid should be a boolean, received`, paid);
+        console.error(`Invalid data type: paid should be a boolean, received:`, paid);
         return;
     }
     if (typeof priority !== 'string') {
-        console.error(`Invalid data type: priority should be a string, received`, priority);
+        console.error(`Invalid data type: priority should be a string, received:`, priority);
         return;
     }
     if (typeof timeOnSite !== 'number') {
-        console.error(`Invalid data type: timeOnSite should be a number, received`, timeOnSite);
+        console.error(`Invalid data type: timeOnSite should be a number, received:`, timeOnSite);
         return;
     }
 
     // Ensure timeOnSite is positive
     if (timeOnSite <= 0) {
-        console.error(`Invalid value: timeOnSite should be greater than 0, received`, timeOnSite);
+        console.error(`Invalid value: timeOnSite should be greater than 0, received:`, timeOnSite);
         return;
     }
 
     // Check if priority is either "low" or "high"
     if (priority !== 'low' && priority !== 'high') {
-        console.error(`Invalid value: priority should be either "low" or "high", received`, priority);
+        console.error(`Invalid value: priority should be either "low" or "high", received:`, priority);
         return;
     }
 
     // Check if items array is empty
     if (items.length === 0) {
-        console.error(`Invalid value: items array should not be empty, received`, items);
+        console.error(`Invalid value: items array should not be empty, received:`, items);
         return;
     }
 
     // Check if all items have a valid itemId
     const invalidItems = items.filter(item => !item.itemId.startsWith('SKU'));
     if (invalidItems.length > 0) {
-        console.error(`Invalid value: Each itemId in items should start with "SKU", received`, invalidItems);
+        console.error(`Invalid value: Each itemId in items should start with "SKU", received:`, invalidItems);
         return;
     }
 
     // Check if customerId starts with "CUST"
     if (!customerId.startsWith('CUST')) {
-        console.error(`Invalid value: customerId should start with "CUST", received`, customerId);
+        console.error(`Invalid value: customerId should start with "CUST", received:`, customerId);
         return;
     }
 
@@ -93,7 +97,6 @@ functions.cloudEvent('ingestCart', async cloudEvent => {
 
     if (paid === false) { //If paid is false, handle it
         //Console log for debugging
-        console.log('Publish to notifications: unpaid cart reminder')
         //Declare topic and data for the notifications
         const topic = 'projects/feisty-parity-447722-a5/topics/commerce-notifications';
         const data = {
@@ -102,7 +105,7 @@ functions.cloudEvent('ingestCart', async cloudEvent => {
         }
         //Send the data to pubsub
         if (await publishMessage(topic, data)) {
-            console.log('Message published to notifications succesfully');
+            console.log('Message published to notifications as unpaid cart reminder succesfully');
         } else {
             console.log('Message errored, and not published');
         }
@@ -111,8 +114,6 @@ functions.cloudEvent('ingestCart', async cloudEvent => {
 
         if (priority === "high") { //If priority is high, do something
             //See previous notes
-            console.log(`Publish to shipping, do nothing
-                and notifications "items otw"`)
             const topic = 'projects/feisty-parity-447722-a5/topics/commerce-notifications';
             const data = {
                 message: 'paid high',
@@ -120,13 +121,12 @@ functions.cloudEvent('ingestCart', async cloudEvent => {
             }
             //See previous notes
             if (await publishMessage(topic, data)) {
-                console.log('Message published to notifications succesfully');
+                console.log('Message published to notifications as items on the way succesfully');
             } else {
                 console.log('Message errored, and not published');
             }
 
         } else { //We can assume any other value to be low
-            console.log(`Publish to low priority shipping, counter`);
 
             //See previous notes2
             const topic = 'projects/feisty-parity-447722-a5/topics/commerce-low_priority_shipping';
